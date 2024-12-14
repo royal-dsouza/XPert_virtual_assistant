@@ -76,14 +76,14 @@ sql_query_tool = Tool(
 )
 
 model = GenerativeModel(
-    "gemini-1.5-pro",
+    "gemini-2.0-flash-exp",
     generation_config={"temperature": 0},
     tools=[sql_query_tool],
 )
 
 st.set_page_config(
     page_title="SQL Talk with BigQuery",
-    page_icon="vertex-ai.png",
+    page_icon="XPO_logo.svg",
     layout="wide",
 )
 
@@ -91,7 +91,7 @@ col1, col2 = st.columns([8, 1])
 with col1:
     st.title("SQL Talk with BigQuery")
 with col2:
-    st.image("vertex-ai.png")
+    st.image("XPO_logo.svg")
 
 st.subheader("Powered by Function Calling in Gemini")
 
