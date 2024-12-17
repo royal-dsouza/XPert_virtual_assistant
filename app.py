@@ -1,51 +1,77 @@
 import time
-
+import os
 from google.cloud import bigquery
 import streamlit as st
-from vertexai.generative_models import FunctionDeclaration, GenerativeModel, Part, Tool
+from typing import Any, Callable, Optional, Tuple, Union
+from vertexai.generative_models import FunctionDeclaration, GenerativeModel, Part, Tool, GenerationConfig, GenerationResponse, ChatSession, Content
 
-BIGQUERY_DATASET_ID = "thelook_ecommerce"
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/Users/royaldsouza/Downloads/qwiklabs-asl-02-a9f444ba3980-2a66e775b84d.json"  # Update this path
 
-list_datasets_func = FunctionDeclaration(
-    name="list_datasets",
-    description="Get a list of datasets that will help answer the user's question",
-    parameters={
-        "type": "object",
-        "properties": {},
-    },
+PROJECT = 'qwiklabs-asl-02-a9f444ba3980'
+
+BIGQUERY_DATASET_ID = "SANDBOX"
+
+class ChatAgent:
+    def __init__(
+        self,
+        model: GenerativeModel,
+        tool_handler_fn: Callable[[str, dict], Any],
+        max_iterative_calls: int = 5,
+    ):
+        self.tool_handler_fn = tool_handler_fn
+        self.chat_session = model.start_chat()
+        self.max_iterative_calls = 5
+
+    def send_message(self, message: str) -> GenerationResponse:
+        response = self.chat_session.send_message(message)
+
+        # This is None if a function call was not triggered
+        fn_call = response.candidates[0].content.parts[0].function_call
+
+        num_calls = 0
+        # Reasoning loop. If fn_call is None then we never enter this
+        # and simply return the response
+        while fn_call:
+            if num_calls > self.max_iterative_calls:
+                break
+
+            # Handle the function call
+            fn_call_response = self.tool_handler_fn(fn_call.name, dict(fn_call.args))
+            num_calls += 1
+
+            # Send the function call result back to the model
+            response = self.chat_session.send_message(
+                Part.from_function_response(
+                    name=fn_call.name,
+                    response={
+                        "content": fn_call_response,
+                    },
+                ),
+            )
+
+            # If the response is another function call then we want to
+            # stay in the reasoning loop and keep calling functions.
+            fn_call = response.candidates[0].content.parts[0].function_call
+
+        return response
+
+list_available_tables_func = FunctionDeclaration(
+    name="list_available_tables",
+    description="Get the list all available BigQuery tables with fully qualified IDs.",
+    parameters={"type": "object", "properties": {}},
 )
 
-list_tables_func = FunctionDeclaration(
-    name="list_tables",
-    description="List tables in a dataset that will help answer the user's question",
-    parameters={
-        "type": "object",
-        "properties": {
-            "dataset_id": {
-                "type": "string",
-                "description": "Dataset ID to fetch tables from.",
-            }
-        },
-        "required": [
-            "dataset_id",
-        ],
-    },
-)
-
-get_table_func = FunctionDeclaration(
-    name="get_table",
-    description="Get information about a table, including the description, schema, and number of rows that will help answer the user's question. Always use the fully qualified dataset and table names.",
+get_table_info_func = FunctionDeclaration(
+    name="get_table_info",
+    description="Get information about a BigQuery table and it's schema so you can better answer user questions.",
     parameters={
         "type": "object",
         "properties": {
             "table_id": {
                 "type": "string",
-                "description": "Fully qualified ID of the table to get information about",
+                "description": "Fully qualified ID of BigQuery table",
             }
         },
-        "required": [
-            "table_id",
-        ],
     },
 )
 
@@ -57,7 +83,7 @@ sql_query_func = FunctionDeclaration(
         "properties": {
             "query": {
                 "type": "string",
-                "description": "SQL query on a single line that will help give quantitative answers to the user's question when run on a BigQuery dataset and table. In the SQL query, always use the fully qualified dataset and table names.",
+                "description": f"SQL query on a single line (no \\n characters) that will help give answers to users questions when run on BigQuery. Only query tables in project: {PROJECT}",
             }
         },
         "required": [
@@ -68,36 +94,72 @@ sql_query_func = FunctionDeclaration(
 
 sql_query_tool = Tool(
     function_declarations=[
-        list_datasets_func,
-        list_tables_func,
-        get_table_func,
-        sql_query_func,
+        list_available_tables_func,
+        get_table_info_func,
+        sql_query_func
     ],
 )
 
 model = GenerativeModel(
     "gemini-2.0-flash-exp",
-    generation_config={"temperature": 0},
+    generation_config=GenerationConfig(temperature=0.0),
     tools=[sql_query_tool],
 )
 
+def list_available_tables():
+    return [f"{PROJECT}.SANDBOX.CUSTOMER_AR_DATA",f"{PROJECT}.SANDBOX.CLAIMS_DATA"]
+
+
+def get_table_info(table_id: str) -> dict:
+    """Returns dict from BigQuery API with table information"""
+    bq_client = bigquery.Client()
+    return bq_client.get_table(table_id).to_api_repr()
+
+
+def sql_query(query_str: str):
+    bq_client = bigquery.Client()
+    try:
+        # clean up query string a bit
+        query_str = (
+            query_str.replace("\\n", "").replace("\n", "").replace("\\", "")
+        )
+        # print(query_str)
+        query_job = bq_client.query(query_str)
+        result = query_job.result()
+        result = str([dict(x) for x in result])
+        return result
+    except Exception as e:
+        return f"Error from BigQuery Query API: {str(e)}"
+    
+def handle_query_fn_call(fn_name: str, fn_args: dict):
+    """Handles query tool function calls."""
+
+    print(f"Function calling: {fn_name} with args: {str(fn_args)}\n")
+    if fn_name == "list_available_tables":
+        result = list_available_tables()
+
+    elif fn_name == "get_table_info":
+        result = get_table_info(fn_args["table_id"])
+
+    elif fn_name == "sql_query":
+        result = sql_query(fn_args["query"])
+
+    else:
+        raise ValueError(f"Unknown function call: {fn_name}")
+
+    return result
+
 st.set_page_config(
-    page_title="SQL Talk with BigQuery",
+    page_title="XPert Virtal Agent",
     page_icon="XPO_logo.svg",
     layout="wide",
 )
 
 col1, col2 = st.columns([8, 1])
 with col1:
-    st.title("SQL Talk with BigQuery")
+    st.title("XPert Virtal Agent")
 with col2:
     st.image("XPO_logo.svg")
-
-st.subheader("Powered by Function Calling in Gemini")
-
-st.markdown(
-    "[Source Code](https://github.com/GoogleCloudPlatform/generative-ai/tree/main/gemini/function-calling/sql-talk-app/)   •   [Documentation](https://cloud.google.com/vertex-ai/docs/generative-ai/multimodal/function-calling)   •   [Codelab](https://codelabs.developers.google.com/codelabs/gemini-function-calling)   •   [Sample Notebook](https://github.com/GoogleCloudPlatform/generative-ai/blob/main/gemini/function-calling/intro_function_calling.ipynb)"
-)
 
 with st.expander("Sample prompts", expanded=True):
     st.write(
@@ -116,13 +178,8 @@ if "messages" not in st.session_state:
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"].replace("$", r"\$"))  # noqa: W605
-        try:
-            with st.expander("Function calls, parameters, and responses"):
-                st.markdown(message["backend_details"])
-        except KeyError:
-            pass
 
-if prompt := st.chat_input("Ask me about information in the database..."):
+if prompt := st.chat_input("Ask me about information on claims, disputes, correction, invoice, collection and shipment tracking..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -130,163 +187,30 @@ if prompt := st.chat_input("Ask me about information in the database..."):
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
         full_response = ""
-        chat = model.start_chat()
-        client = bigquery.Client()
+        chat = ChatAgent(model=model, tool_handler_fn=handle_query_fn_call)
 
-        prompt += """
-            Please give a concise, high-level summary followed by detail in
-            plain language about where the information in your response is
-            coming from in the database. Only use information that you learn
-            from BigQuery, do not make up information.
+        init_prompt = """
+            Please give a concise and easy to understand answer to any questions.
+            Only use information that you learn by querying the BigQuery table.
+            Do not make up information. Be sure to look at which tables are available
+            and get the info of any relevant tables before trying to write a query.
+            
+            Question:
             """
 
         try:
-            response = chat.send_message(prompt)
-            response = response.candidates[0].content.parts[0]
+            response = chat.send_message(init_prompt + prompt)
 
-            print(response)
-
-            api_requests_and_responses = []
-            backend_details = ""
-
-            function_calling_in_process = True
-            while function_calling_in_process:
-                try:
-                    params = {}
-                    for key, value in response.function_call.args.items():
-                        params[key] = value
-
-                    print(response.function_call.name)
-                    print(params)
-
-                    if response.function_call.name == "list_datasets":
-                        api_response = client.list_datasets()
-                        api_response = BIGQUERY_DATASET_ID
-                        api_requests_and_responses.append(
-                            [response.function_call.name, params, api_response]
-                        )
-
-                    if response.function_call.name == "list_tables":
-                        api_response = client.list_tables(params["dataset_id"])
-                        api_response = str([table.table_id for table in api_response])
-                        api_requests_and_responses.append(
-                            [response.function_call.name, params, api_response]
-                        )
-
-                    if response.function_call.name == "get_table":
-                        api_response = client.get_table(params["table_id"])
-                        api_response = api_response.to_api_repr()
-                        api_requests_and_responses.append(
-                            [
-                                response.function_call.name,
-                                params,
-                                [
-                                    str(api_response.get("description", "")),
-                                    str(
-                                        [
-                                            column["name"]
-                                            for column in api_response["schema"][
-                                                "fields"
-                                            ]
-                                        ]
-                                    ),
-                                ],
-                            ]
-                        )
-                        api_response = str(api_response)
-
-                    if response.function_call.name == "sql_query":
-                        job_config = bigquery.QueryJobConfig(
-                            maximum_bytes_billed=100000000
-                        )  # Data limit per query job
-                        try:
-                            cleaned_query = (
-                                params["query"]
-                                .replace("\\n", " ")
-                                .replace("\n", "")
-                                .replace("\\", "")
-                            )
-                            query_job = client.query(
-                                cleaned_query, job_config=job_config
-                            )
-                            api_response = query_job.result()
-                            api_response = str([dict(row) for row in api_response])
-                            api_response = api_response.replace("\\", "").replace(
-                                "\n", ""
-                            )
-                            api_requests_and_responses.append(
-                                [response.function_call.name, params, api_response]
-                            )
-                        except Exception as e:
-                            error_message = f"""
-                            We're having trouble running this SQL query. This
-                            could be due to an invalid query or the structure of
-                            the data. Try rephrasing your question to help the
-                            model generate a valid query. Details:
-
-                            {str(e)}"""
-                            st.error(error_message)
-                            api_response = error_message
-                            api_requests_and_responses.append(
-                                [response.function_call.name, params, api_response]
-                            )
-                            st.session_state.messages.append(
-                                {
-                                    "role": "assistant",
-                                    "content": error_message,
-                                }
-                            )
-
-                    print(api_response)
-
-                    response = chat.send_message(
-                        Part.from_function_response(
-                            name=response.function_call.name,
-                            response={
-                                "content": api_response,
-                            },
-                        ),
-                    )
-                    response = response.candidates[0].content.parts[0]
-
-                    backend_details += "- Function call:\n"
-                    backend_details += (
-                        "   - Function name: ```"
-                        + str(api_requests_and_responses[-1][0])
-                        + "```"
-                    )
-                    backend_details += "\n\n"
-                    backend_details += (
-                        "   - Function parameters: ```"
-                        + str(api_requests_and_responses[-1][1])
-                        + "```"
-                    )
-                    backend_details += "\n\n"
-                    backend_details += (
-                        "   - API response: ```"
-                        + str(api_requests_and_responses[-1][2])
-                        + "```"
-                    )
-                    backend_details += "\n\n"
-                    with message_placeholder.container():
-                        st.markdown(backend_details)
-
-                except AttributeError:
-                    function_calling_in_process = False
-
-            time.sleep(3)
+            print(response.text)
 
             full_response = response.text
             with message_placeholder.container():
                 st.markdown(full_response.replace("$", r"\$"))  # noqa: W605
-                with st.expander("Function calls, parameters, and responses:"):
-                    st.markdown(backend_details)
 
             st.session_state.messages.append(
                 {
                     "role": "assistant",
-                    "content": full_response,
-                    "backend_details": backend_details,
+                    "content": full_response
                 }
             )
         except Exception as e:
