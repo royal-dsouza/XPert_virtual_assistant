@@ -1,15 +1,27 @@
 import time
 import os
 from google.cloud import bigquery
+from google.oauth2 import service_account
 import streamlit as st
 from typing import Any, Callable, Optional, Tuple, Union
-from vertexai.generative_models import FunctionDeclaration, GenerativeModel, Part, Tool, GenerationConfig, GenerationResponse, ChatSession, Content
+from vertexai.generative_models import FunctionDeclaration, GenerativeModel, Part, Tool, GenerationConfig, GenerationResponse, ChatSession, Content, HarmCategory, HarmBlockThreshold
+import google.auth
+import json
 
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/Users/royaldsouza/Downloads/qwiklabs-asl-02-a9f444ba3980-2a66e775b84d.json"  # Update this path
+# os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "C:\Pushkar\Python\Qwiklab_Credentials.json"  # Update this path
 
 PROJECT = 'qwiklabs-asl-02-a9f444ba3980'
 
 BIGQUERY_DATASET_ID = "SANDBOX"
+
+# credentials = service_account.Credentials.from_service_account_file('Qwiklab_Credentials.json')
+credentials, project = google.auth.default(
+    scopes=[
+            "https://www.googleapis.com/auth/cloud-platform",
+            "https://www.googleapis.com/auth/bigquery"
+        ]
+    )
+
 
 class ChatAgent:
     def __init__(
@@ -17,9 +29,10 @@ class ChatAgent:
         model: GenerativeModel,
         tool_handler_fn: Callable[[str, dict], Any],
         max_iterative_calls: int = 5,
+        chat_history: list[Content] = []
     ):
         self.tool_handler_fn = tool_handler_fn
-        self.chat_session = model.start_chat()
+        self.chat_session = model.start_chat(history = chat_history)
         self.max_iterative_calls = 5
 
     def send_message(self, message: str) -> GenerationResponse:
@@ -100,24 +113,33 @@ sql_query_tool = Tool(
     ],
 )
 
+safety_settings = {
+    HarmCategory.HARM_CATEGORY_UNSPECIFIED: HarmBlockThreshold.BLOCK_NONE,
+    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+}
+
 model = GenerativeModel(
-    "gemini-2.0-flash-exp",
+    "gemini-1.5-flash",
     generation_config=GenerationConfig(temperature=0.0),
     tools=[sql_query_tool],
+    safety_settings=safety_settings
 )
 
 def list_available_tables():
-    return [f"{PROJECT}.SANDBOX.CUSTOMER_AR_DATA",f"{PROJECT}.SANDBOX.CLAIMS_DATA"]
+    return [f"{PROJECT}.SANDBOX.CUSTOMER_COLLECTIONS_DATA",f"{PROJECT}.SANDBOX.CLAIMS_DATA", f"{PROJECT}.SANDBOX.CUSTOMER_CORRECTIONS_DATA", f"{PROJECT}.SANDBOX.CUSTOMER_DISPUTES_DATA"]
 
 
 def get_table_info(table_id: str) -> dict:
     """Returns dict from BigQuery API with table information"""
-    bq_client = bigquery.Client()
+    bq_client = bigquery.Client(project=project, credentials=credentials)
     return bq_client.get_table(table_id).to_api_repr()
 
 
 def sql_query(query_str: str):
-    bq_client = bigquery.Client()
+    bq_client = bigquery.Client(project=project, credentials=credentials)
     try:
         # clean up query string a bit
         query_str = (
@@ -174,6 +196,7 @@ with st.expander("Sample prompts", expanded=True):
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
+    st.session_state.history = []
 
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
@@ -187,7 +210,8 @@ if prompt := st.chat_input("Ask me about information on claims, disputes, correc
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
         full_response = ""
-        chat = ChatAgent(model=model, tool_handler_fn=handle_query_fn_call)
+        # print(st.session_state.messages)
+        chat = ChatAgent(model=model, tool_handler_fn=handle_query_fn_call, chat_history = st.session_state.history)
 
         init_prompt = """
             Please give a concise and easy to understand answer to any questions.
@@ -195,11 +219,17 @@ if prompt := st.chat_input("Ask me about information on claims, disputes, correc
             Do not make up information. Be sure to look at which tables are available
             and get the info of any relevant tables before trying to write a query.
             
+            When providing dollar amounts or anything related to money please format it in terms of USD.
+            When the user mentions the word PRO search for PRO_NUMBER or PRO_NBR_TXT.
+            
             Question:
             """
 
         try:
             response = chat.send_message(init_prompt + prompt)
+            st.session_state.history += chat.chat_session.history
+
+            # print("History: ", st.session_state.history)
 
             print(response.text)
 
