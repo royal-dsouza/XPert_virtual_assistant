@@ -7,6 +7,7 @@ from typing import Any, Callable, Optional, Tuple, Union
 from vertexai.generative_models import FunctionDeclaration, GenerativeModel, Part, Tool, GenerationConfig, GenerationResponse, ChatSession, Content, HarmCategory, HarmBlockThreshold
 import google.auth
 import json
+import re
 
 # os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "C:\Pushkar\Python\Qwiklab_Credentials.json"  # Update this path
 
@@ -129,7 +130,11 @@ model = GenerativeModel(
 )
 
 def list_available_tables():
-    return [f"{PROJECT}.SANDBOX.CUSTOMER_COLLECTIONS_DATA",f"{PROJECT}.SANDBOX.CLAIMS_DATA", f"{PROJECT}.SANDBOX.CUSTOMER_CORRECTIONS_DATA", f"{PROJECT}.SANDBOX.CUSTOMER_DISPUTES_DATA"]
+    return [f"{PROJECT}.SANDBOX.CUSTOMER_COLLECTIONS_DATA",
+        f"{PROJECT}.SANDBOX.CLAIMS_DATA",
+        f"{PROJECT}.SANDBOX.CUSTOMER_CORRECTIONS_DATA",
+        f"{PROJECT}.SANDBOX.CUSTOMER_DISPUTES_DATA",
+        f"{PROJECT}.SANDBOX.SHIPMENT_DATA"]
 
 
 def get_table_info(table_id: str) -> dict:
@@ -171,26 +176,63 @@ def handle_query_fn_call(fn_name: str, fn_args: dict):
 
     return result
 
+def validate_pro_number(s):
+    # Define the regular expression pattern
+    pattern = r'^(0\d{3}0\d{6}|(\d{3}-\d{6})|\d{9})$'
+    
+    # Match the pattern
+    if re.match(pattern, s):
+        return True
+    else:
+        return False
+    
+def validate_madcode(s):
+    # Check if the string starts with a letter, ends with a number, and contains no special characters
+    return bool(re.match(r'^[a-zA-Z][a-zA-Z0-9 ]*\d+$', s))
+
 st.set_page_config(
-    page_title="XPert Virtal Agent",
+    page_title="XPert AI Agent",
     page_icon="XPO_logo.svg",
     layout="wide",
 )
 
 col1, col2 = st.columns([8, 1])
 with col1:
-    st.title("XPert Virtal Agent")
+    st.title("XPert AI Agent")
 with col2:
     st.image("XPO_logo.svg")
+
+st.markdown("""
+        <style>
+        .input-label {
+            font-weight: bold;
+            color: #FF6347;  /* Red label */
+            font-size: 18px;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+# Add three small text input boxes on the same line
+col1, col2 = st.columns([6, 6])
+with col1:
+    st.markdown('<label class="input-label">Shipment Tracking Number / PRO Number</label>', unsafe_allow_html=True)
+    shipment_tracking_number = st.text_input("", key="shipment_tracking_number", placeholder="Enter Shipment Tracking Number / PRO Number", help="Enter the tracking number / PRO Number of the shipment.", label_visibility="collapsed")
+        
+with col2:
+    st.markdown('<label class="input-label">Customer Reference Number / Customer MADCODE</label>', unsafe_allow_html=True)
+    customer_reference_number = st.text_input("", key="customer_reference_number", placeholder="Enter Customer Ref. No. / Customer MADCODE", help="Enter the customer reference number / Customer MADCODE.", label_visibility="collapsed")
+
+if not shipment_tracking_number and not customer_reference_number:
+    st.error("Please enter at least one of the following: Shipment Tracking Number / PRO Number or Customer Reference Number / Customer MADCODE to answer you better.")
 
 with st.expander("Sample prompts", expanded=True):
     st.write(
         """
-        - What kind of information is in this database?
-        - What percentage of orders are returned?
-        - How is inventory distributed across our regional distribution centers?
-        - Do customers typically place more than one order?
-        - Which product categories have the highest profit margins?
+        - Where is the shipment?
+        - Are there any open invoices on this shipment?
+        - Can you provide claims information on this pro?
+        - What is the status of the claim?
+        - When this shipment will be delivered?
     """
     )
 
@@ -203,58 +245,68 @@ for message in st.session_state.messages:
         st.markdown(message["content"].replace("$", r"\$"))  # noqa: W605
 
 if prompt := st.chat_input("Ask me about information on claims, disputes, correction, invoice, collection and shipment tracking..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    if not shipment_tracking_number and not customer_reference_number:
+        st.error("Please enter at least one of the following: Shipment Tracking Number / PRO Number or Customer Reference Number / Customer MADCODE to answer you better.")
+    if shipment_tracking_number and not validate_pro_number(shipment_tracking_number):
+        st.error("Entered Shipment tracking no. / PRO Number is not in the valid format")
+    if customer_reference_number and not validate_madcode(customer_reference_number):
+        st.error("Entered Customer Reference Number / Customer MADCODE is not in the valid format")
+    else:
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
 
-    with st.chat_message("assistant"):
-        message_placeholder = st.empty()
-        full_response = ""
-        # print(st.session_state.messages)
-        chat = ChatAgent(model=model, tool_handler_fn=handle_query_fn_call, chat_history = st.session_state.history)
+        with st.chat_message("assistant"):
+            message_placeholder = st.empty()
+            full_response = ""
+            # print(st.session_state.messages)
+            chat = ChatAgent(model=model, tool_handler_fn=handle_query_fn_call, chat_history = st.session_state.history)
 
-        init_prompt = """
-            Please give a concise and easy to understand answer to any questions.
-            Only use information that you learn by querying the BigQuery table.
-            Do not make up information. Be sure to look at which tables are available
-            and get the info of any relevant tables before trying to write a query.
-            
-            When providing dollar amounts or anything related to money please format it in terms of USD.
-            When the user mentions the word PRO search for PRO_NUMBER or PRO_NBR_TXT.
-            
-            Question:
-            """
+            init_prompt = f"""
+                Please give a concise and easy to understand answer to any questions.
+                Only use information that you learn by querying the BigQuery table.
+                Do not make up information. Be sure to look at which tables are available
+                and get the info of any relevant tables before trying to write a query.
+                
+                When providing dollar amounts or anything related to money please format it in terms of USD.
+                When the user mentions the word PRO search for PRO_NUMBER or PRO_NBR_TXT.
+                
+                If PRO NUMBER: {shipment_tracking_number} is provided then use the {shipment_tracking_number} on the where condition of the sql to filter by pro number. Use two OR condition one pro number = {shipment_tracking_number} or pro number = 
+                If MADCODE: {customer_reference_number} is provided then use the {customer_reference_number} on the where condition of the sql to filter by customer madcode
 
-        try:
-            response = chat.send_message(init_prompt + prompt)
-            st.session_state.history += chat.chat_session.history
+                Question:
+                """
 
-            # print("History: ", st.session_state.history)
+            try:
+                response = chat.send_message(init_prompt + prompt)
+                st.session_state.history += chat.chat_session.history
 
-            print(response.text)
+                # print("History: ", st.session_state.history)
 
-            full_response = response.text
-            with message_placeholder.container():
-                st.markdown(full_response.replace("$", r"\$"))  # noqa: W605
+                print(response.text)
 
-            st.session_state.messages.append(
-                {
-                    "role": "assistant",
-                    "content": full_response
-                }
-            )
-        except Exception as e:
-            print(e)
-            error_message = f"""
-                Something went wrong! We encountered an unexpected error while
-                trying to process your request. Please try rephrasing your
-                question. Details:
+                full_response = response.text
+                with message_placeholder.container():
+                    st.markdown(full_response.replace("$", r"\$"))  # noqa: W605
 
-                {str(e)}"""
-            st.error(error_message)
-            st.session_state.messages.append(
-                {
-                    "role": "assistant",
-                    "content": error_message,
-                }
-            )
+                st.session_state.messages.append(
+                    {
+                        "role": "assistant",
+                        "content": full_response
+                    }
+                )
+            except Exception as e:
+                print(e)
+                error_message = f"""
+                    Something went wrong! We encountered an unexpected error while
+                    trying to process your request. Please try rephrasing your
+                    question. Details:
+
+                    {str(e)}"""
+                st.error(error_message)
+                st.session_state.messages.append(
+                    {
+                        "role": "assistant",
+                        "content": error_message,
+                    }
+                )
