@@ -34,7 +34,7 @@ class ChatAgent:
     ):
         self.tool_handler_fn = tool_handler_fn
         self.chat_session = model.start_chat(history = chat_history)
-        self.max_iterative_calls = 5
+        self.max_iterative_calls = 10
 
     def send_message(self, message: str) -> GenerationResponse:
         response = self.chat_session.send_message(message)
@@ -123,7 +123,7 @@ safety_settings = {
 }
 
 model = GenerativeModel(
-    "gemini-1.5-pro",
+    "gemini-2.0-flash-exp",
     generation_config=GenerationConfig(temperature=0.0),
     tools=[sql_query_tool],
     safety_settings=safety_settings
@@ -199,12 +199,12 @@ def format_pro_number(s):
     if len(cleaned_number) == 9:
         # Add leading zero to convert to 0XXX0XXXXXX format
         formatted_number = '0' + cleaned_number[:3] + '0' + cleaned_number[3:]
-        return f"{formatted_number} or PRO NUMBER = {cleaned_number}"
+        return f"('{formatted_number}', '{cleaned_number}')"
     
     elif len(cleaned_number) == 11 and s[0] == '0':
         # remove the zero to convert to xxxxxxxxx
         formatted_number = cleaned_number[1:4] + cleaned_number[5:]
-        return f"{cleaned_number} or PRO NUMBER = {formatted_number}"
+        return f"('{cleaned_number}', '{formatted_number}')"
 
 st.set_page_config(
     page_title="XPert AI Agent",
@@ -290,11 +290,12 @@ if prompt := st.chat_input("Ask me about information on claims, disputes, correc
                 PRO NUMBER = {format_pro_number(shipment_tracking_number)}
                 MADCODE = {(customer_reference_number).upper()}
                 
-                If PRO NUMBER is provided then always use the PRO NUMBER on the where condition of the sql to filter by pro number.
+                If PRO NUMBER is provided then always use the PRO NUMBER on the where condition of the sql to filter by pro number. Filter the pro number using the 'IN' condition to match both PRO NUMBER formats.
                 If MADCODE is provided then always use the MADCODE on the where condition of the sql to filter by customer madcode or debtor madcode
 
                 Question:
                 """
+            print(init_prompt)
 
             try:
                 response = chat.send_message(init_prompt + prompt)
