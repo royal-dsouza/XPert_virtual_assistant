@@ -5,7 +5,7 @@ bash ~/miniforge.sh -fbp ${PYTHON_PREFIX}
 rm -rf ~/miniforge.sh
 
 # Install packages
-${PYTHON_PREFIX}/bin/pip install -r requirement.txt
+${PYTHON_PREFIX}/bin/pip install -r requirements.txt
 
 # Run app
 ${PYTHON_PREFIX}/bin/streamlit run app.py --server.enableCORS=false --server.enableXsrfProtection=false --server.port 8080
