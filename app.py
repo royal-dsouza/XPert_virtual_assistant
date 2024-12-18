@@ -123,7 +123,7 @@ safety_settings = {
 }
 
 model = GenerativeModel(
-    "gemini-1.5-flash",
+    "gemini-1.5-pro",
     generation_config=GenerationConfig(temperature=0.0),
     tools=[sql_query_tool],
     safety_settings=safety_settings
@@ -190,6 +190,22 @@ def validate_madcode(s):
     # Check if the string starts with a letter, ends with a number, and contains no special characters
     return bool(re.match(r'^[a-zA-Z][a-zA-Z0-9 ]*\d+$', s))
 
+def format_pro_number(s):
+    # Clean the input string by hyphens
+    cleaned_number = s.replace("-","")
+    print(cleaned_number)
+    
+    # Check the length and format of the cleaned number
+    if len(cleaned_number) == 9:
+        # Add leading zero to convert to 0XXX0XXXXXX format
+        formatted_number = '0' + cleaned_number[:3] + '0' + cleaned_number[3:]
+        return f"{formatted_number} or PRO NUMBER = {cleaned_number}"
+    
+    elif len(cleaned_number) == 11 and s[0] == '0':
+        # remove the zero to convert to xxxxxxxxx
+        formatted_number = cleaned_number[1:4] + cleaned_number[5:]
+        return f"{cleaned_number} or PRO NUMBER = {formatted_number}"
+
 st.set_page_config(
     page_title="XPert AI Agent",
     page_icon="XPO_logo.svg",
@@ -216,11 +232,11 @@ st.markdown("""
 col1, col2 = st.columns([6, 6])
 with col1:
     st.markdown('<label class="input-label">Shipment Tracking Number / PRO Number</label>', unsafe_allow_html=True)
-    shipment_tracking_number = st.text_input("", key="shipment_tracking_number", placeholder="Enter Shipment Tracking Number / PRO Number", help="Enter the tracking number / PRO Number of the shipment.", label_visibility="collapsed")
+    shipment_tracking_number = st.text_input(label="shipment_tracking_number",key="shipment_tracking_number", placeholder="Enter Shipment Tracking Number / PRO Number", help="Enter the tracking number / PRO Number of the shipment.", label_visibility="collapsed")
         
 with col2:
     st.markdown('<label class="input-label">Customer Reference Number / Customer MADCODE</label>', unsafe_allow_html=True)
-    customer_reference_number = st.text_input("", key="customer_reference_number", placeholder="Enter Customer Ref. No. / Customer MADCODE", help="Enter the customer reference number / Customer MADCODE.", label_visibility="collapsed")
+    customer_reference_number = st.text_input(label="customer_reference_number",key="customer_reference_number", placeholder="Enter Customer Ref. No. / Customer MADCODE", help="Enter the customer reference number / Customer MADCODE.", label_visibility="collapsed")
 
 if not shipment_tracking_number and not customer_reference_number:
     st.error("Please enter at least one of the following: Shipment Tracking Number / PRO Number or Customer Reference Number / Customer MADCODE to answer you better.")
@@ -270,9 +286,12 @@ if prompt := st.chat_input("Ask me about information on claims, disputes, correc
                 
                 When providing dollar amounts or anything related to money please format it in terms of USD.
                 When the user mentions the word PRO search for PRO_NUMBER or PRO_NBR_TXT.
+
+                PRO NUMBER = {format_pro_number(shipment_tracking_number)}
+                MADCODE = {(customer_reference_number).upper()}
                 
-                If PRO NUMBER: {shipment_tracking_number} is provided then use the {shipment_tracking_number} on the where condition of the sql to filter by pro number. Use two OR condition one pro number = {shipment_tracking_number} or pro number = 
-                If MADCODE: {customer_reference_number} is provided then use the {customer_reference_number} on the where condition of the sql to filter by customer madcode
+                If PRO NUMBER is provided then always use the PRO NUMBER on the where condition of the sql to filter by pro number.
+                If MADCODE is provided then always use the MADCODE on the where condition of the sql to filter by customer madcode or debtor madcode
 
                 Question:
                 """
