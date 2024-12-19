@@ -123,7 +123,7 @@ safety_settings = {
 }
 
 model = GenerativeModel(
-    "gemini-2.0-flash-exp",
+    "gemini-1.5-pro",
     generation_config=GenerationConfig(temperature=0.0),
     tools=[sql_query_tool],
     safety_settings=safety_settings
@@ -212,45 +212,53 @@ st.set_page_config(
     layout="wide",
 )
 
-col1, col2 = st.columns([8, 1])
-with col1:
-    st.title("XPert AI Agent")
-with col2:
-    st.image("XPO_logo.svg")
-
 st.markdown("""
         <style>
         .input-label {
             font-weight: bold;
             color: #FF6347;  /* Red label */
-            font-size: 18px;
+            font-size: 16px;
         }
         </style>
     """, unsafe_allow_html=True)
 
 # Add three small text input boxes on the same line
-col1, col2 = st.columns([6, 6])
+
+
+col1, col2, col3 = st.columns([8, 4, 4])
 with col1:
+    st.title("XPert AI Agent")
+
+with col2:
     st.markdown('<label class="input-label">Shipment Tracking Number / PRO Number</label>', unsafe_allow_html=True)
     shipment_tracking_number = st.text_input(label="shipment_tracking_number",key="shipment_tracking_number", placeholder="Enter Shipment Tracking Number / PRO Number", help="Enter the tracking number / PRO Number of the shipment.", label_visibility="collapsed")
         
-with col2:
+with col3:
     st.markdown('<label class="input-label">Customer Reference Number / Customer MADCODE</label>', unsafe_allow_html=True)
     customer_reference_number = st.text_input(label="customer_reference_number",key="customer_reference_number", placeholder="Enter Customer Ref. No. / Customer MADCODE", help="Enter the customer reference number / Customer MADCODE.", label_visibility="collapsed")
 
 if not shipment_tracking_number and not customer_reference_number:
-    st.error("Please enter at least one of the following: Shipment Tracking Number / PRO Number or Customer Reference Number / Customer MADCODE to answer you better.")
+    st.error("Please enter at least one of the following: Shipment Tracking Number / PRO Number or Customer Reference Number / Customer MADCODE to answer you better.", icon="⚠️")
 
-with st.expander("Sample prompts", expanded=True):
+with st.expander("Welcome to the XPert AI Agent!", expanded=True):
+    # Adding a description of the website
+    st.markdown("""
+    <div style="text-align: left; font-size: 18px; color: #FF6347;">
+        <p>
+            This an AI-powered platform which allows you to ask questions, and get answers fast all within an intuitive chat interface. By simply entering a Shipment Tracking Number or Customer Reference Number, you can instantly access detailed information about a shipment or customer to track their shipment status, view open invoices, corrections, disputes, and claims—everything in one place
+        </p>
+        <p>One-Stop Shop for all the insight!</p>
+    </div>
+    """, unsafe_allow_html=True)
     st.write(
         """
+        Sample Questions:
         - Where is the shipment?
         - Are there any open invoices on this shipment?
         - Can you provide claims information on this pro?
         - What is the status of the claim?
         - When this shipment will be delivered?
-    """
-    )
+    """)
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -260,12 +268,12 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"].replace("$", r"\$"))  # noqa: W605
 
-if prompt := st.chat_input("Ask me about information on claims, disputes, correction, invoice, collection and shipment tracking..."):
+if prompt := st.chat_input("Ask me about information on claims, disputes, correction, invoice and shipment tracking ..."):
     if not shipment_tracking_number and not customer_reference_number:
         st.error("Please enter at least one of the following: Shipment Tracking Number / PRO Number or Customer Reference Number / Customer MADCODE to answer you better.")
-    if shipment_tracking_number and not validate_pro_number(shipment_tracking_number):
+    elif shipment_tracking_number and not validate_pro_number(shipment_tracking_number):
         st.error("Entered Shipment tracking no. / PRO Number is not in the valid format")
-    if customer_reference_number and not validate_madcode(customer_reference_number):
+    elif customer_reference_number and not validate_madcode(customer_reference_number):
         st.error("Entered Customer Reference Number / Customer MADCODE is not in the valid format")
     else:
         st.session_state.messages.append({"role": "user", "content": prompt})
