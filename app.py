@@ -123,7 +123,7 @@ safety_settings = {
 }
 
 model = GenerativeModel(
-    "gemini-2.0-flash-exp",
+    "gemini-1.5-pro",
     generation_config=GenerationConfig(temperature=0.0),
     tools=[sql_query_tool],
     safety_settings=safety_settings
