@@ -204,12 +204,12 @@ def format_pro_number(s):
     
     # Check the length and format of the cleaned number
     if len(cleaned_number) == 9:
-        return f'{cleaned_number}'
+        return f'"{cleaned_number}"'
     
     elif len(cleaned_number) == 11 and s[0] == '0':
         # remove the zero to convert to xxxxxxxxx
         formatted_number = cleaned_number[1:4] + cleaned_number[5:]
-        return f'{formatted_number}'
+        return f'"{formatted_number}"'
 
 st.set_page_config(
     page_title="XPert AI Agent",
