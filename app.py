@@ -71,7 +71,7 @@ class ChatAgent:
 
 list_available_tables_func = FunctionDeclaration(
     name="list_available_tables",
-    description="Get the list all available BigQuery tables with fully qualified IDs.",
+    description="Get the list all available BigQuery tables with fully qualified IDs and their description",
     parameters={"type": "object", "properties": {}},
 )
 
@@ -130,17 +130,25 @@ model = GenerativeModel(
 )
 
 def list_available_tables():
-    return [f"{PROJECT}.SANDBOX.CUSTOMER_COLLECTIONS_DATA",
-        f"{PROJECT}.SANDBOX.CLAIMS_DATA",
-        f"{PROJECT}.SANDBOX.CUSTOMER_CORRECTIONS_DATA",
-        f"{PROJECT}.SANDBOX.CUSTOMER_DISPUTES_DATA",
-        f"{PROJECT}.SANDBOX.SHIPMENT_DATA"]
+
+    return [{"table_id" : f"{PROJECT}.SANDBOX.CUSTOMER_COLLECTIONS_DATA", "table_description" : "This table provides data for open invoices tied to shipments. It contains information about invoice number, due date, balance due and debtor customer."},
+    {"table_id" : f"{PROJECT}.SANDBOX.CUSTOMER_CLAIMS_DATA", "table_description" : "This table provides claims information"},
+    {"table_id" : f"{PROJECT}.SANDBOX.CUSTOMER_CORRECTIONS_DATA", "table_description" : "This table provides information on every correction for each shipment. It contains the correction type, correction reason, correction category, correction queue and the revenue gained or lost because of the correction."},
+    {"table_id" : f"{PROJECT}.SANDBOX.CUSTOMER_DISPUTES_DATA", "table_description" : "This table provides information about disputes for each shipment. It contains the dispute type, the status, the requested and approved amounts and the customer who raised the dispute."},
+    {"table_id" : f"{PROJECT}.SANDBOX.CUSTOMER_SHIPMENT_DATA", "table_description" : "This table is at shipment level, which can be used track the status of the shipment it has information such as delivery date, pickup date, estimated delivery date, weight, piece count, charges, shipper and consignee information"}]
 
 
 def get_table_info(table_id: str) -> dict:
     """Returns dict from BigQuery API with table information"""
     bq_client = bigquery.Client(project=project, credentials=credentials)
-    return bq_client.get_table(table_id).to_api_repr()
+    table_info = bq_client.get_table(table_id).to_api_repr()
+
+    short_table_info = {}
+    short_table_info['table_id'] = table_id
+    short_table_info['table_description'] = table_info['description']
+    short_table_info['schema'] = table_info['schema']
+
+    return short_table_info
 
 
 def sql_query(query_str: str):
@@ -191,20 +199,17 @@ def validate_madcode(s):
     return bool(re.match(r'^[a-zA-Z][a-zA-Z0-9 ]*\d+$', s))
 
 def format_pro_number(s):
-    # Clean the input string by hyphens
+    # Clean the input string by removing hyphens
     cleaned_number = s.replace("-","")
-    print(cleaned_number)
     
     # Check the length and format of the cleaned number
     if len(cleaned_number) == 9:
-        # Add leading zero to convert to 0XXX0XXXXXX format
-        formatted_number = '0' + cleaned_number[:3] + '0' + cleaned_number[3:]
-        return f"('{formatted_number}', '{cleaned_number}')"
+        return f'{cleaned_number}'
     
     elif len(cleaned_number) == 11 and s[0] == '0':
         # remove the zero to convert to xxxxxxxxx
         formatted_number = cleaned_number[1:4] + cleaned_number[5:]
-        return f"('{cleaned_number}', '{formatted_number}')"
+        return f'{formatted_number}'
 
 st.set_page_config(
     page_title="XPert AI Agent",
@@ -223,7 +228,13 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # Add three small text input boxes on the same line
-
+col1, col2, col3 = st.columns([6,6,0.5])
+with col1:
+    st.write('')
+with col2:
+    st.write('')
+with col3:
+    st.image("XPO_logo.svg")
 
 col1, col2, col3 = st.columns([8, 4, 4])
 with col1:
@@ -243,11 +254,10 @@ if not shipment_tracking_number and not customer_reference_number:
 with st.expander("Welcome to the XPert AI Agent!", expanded=True):
     # Adding a description of the website
     st.markdown("""
-    <div style="text-align: left; font-size: 18px; color: #FF6347;">
+    <div style="text-align: left; font-size: 18px; color: #9E9E9E;">
         <p>
-            This an AI-powered platform which allows you to ask questions, and get answers fast all within an intuitive chat interface. By simply entering a Shipment Tracking Number or Customer Reference Number, you can instantly access detailed information about a shipment or customer to track their shipment status, view open invoices, corrections, disputes, and claims—everything in one place
+            This an AI-powered platform which allows you to ask questions, and get answers fast all within an intuitive chat interface. By simply entering a Shipment Tracking Number or Customer Reference Number, you can instantly access detailed information about a shipment or customer to track their shipment status, view open invoices, corrections, disputes, and claims — everything in one place!!
         </p>
-        <p>One-Stop Shop for all the insight!</p>
     </div>
     """, unsafe_allow_html=True)
     st.write(
@@ -287,23 +297,23 @@ if prompt := st.chat_input("Ask me about information on claims, disputes, correc
             chat = ChatAgent(model=model, tool_handler_fn=handle_query_fn_call, chat_history = st.session_state.history)
 
             init_prompt = f"""
-                Please give a concise and easy to understand answer to any questions.
+                Please give a concise and easy to understand answer to any questions. Followed by a detail in plain easy to understand language about where the information in your response is coming from in the database to the business users.
                 Only use information that you learn by querying the BigQuery table.
-                Do not make up information. Be sure to look at which tables are available
-                and get the info of any relevant tables before trying to write a query.
+                Do not make up information. Be sure to look at which tables are available using list_available_tables function
+                and get the info of any relevant tables using get_table_info function before trying to write a query.
+                join multiple tables if required to answer the questions.
                 
                 When providing dollar amounts or anything related to money please format it in terms of USD.
-                When the user mentions the word PRO search for PRO_NUMBER or PRO_NBR_TXT.
 
                 PRO NUMBER = {format_pro_number(shipment_tracking_number)}
                 MADCODE = {(customer_reference_number).upper()}
                 
-                If PRO NUMBER is provided then always use the PRO NUMBER on the where condition of the sql to filter by pro number. Filter the pro number using the 'IN' condition to match both PRO NUMBER formats.
-                If MADCODE is provided then always use the MADCODE on the where condition of the sql to filter by customer madcode or debtor madcode
+                If PRO NUMBER is provided then always use the PRO NUMBER on the 'WHERE' condition of the sql to filter by pro number.
+                If MADCODE is provided then always use the MADCODE on the 'WHERE' condition of the sql to filter by customer madcode or debtor madcode.
 
                 Question:
                 """
-            print(init_prompt)
+            print(init_prompt + prompt)
 
             try:
                 response = chat.send_message(init_prompt + prompt)
