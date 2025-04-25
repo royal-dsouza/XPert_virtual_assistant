@@ -1,6 +1,5 @@
 # XPert AI Agent - Streamlining Customer Support with GenAI
 
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 ![Streamlit](https://img.shields.io/badge/Streamlit-Frontend-blue)
 ![Google Cloud](https://img.shields.io/badge/Google_Cloud-Hosting-blue)
 ![BigQuery](https://img.shields.io/badge/BigQuery-Data_Source-blue)
@@ -119,9 +118,8 @@ Here's a look at the XPert AI Agent interface:
 -   Mohit
 -   Pushkar
 
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## Presentation doc
+- Find the presentation link - https://docs.google.com/presentation/d/1QkIE_AnnF6bJOU7_pB7n_sCMWX8qnHyh/edit?usp=sharing&ouid=105545888623314265270&rtpof=true&sd=true
 
 ## Acknowledgments
 
