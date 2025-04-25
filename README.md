@@ -1,6 +1,8 @@
 ASL Open Project – XPert AI Agent
 Team: Royal, Amit, Mohit, Pushkar
 
+<img width="1053" alt="image" src="https://github.com/user-attachments/assets/451e9f10-c4c4-4cf9-a0ec-e95c794794e0" />
+
 
 Project Overview
 Customer support agents often face inefficiencies and delays due to the need to access multiple systems to answer customer queries. The ASL Open Project addresses this by integrating an AI-powered chat platform, aiming to streamline information retrieval and enhance agent productivity.
