@@ -10,10 +10,13 @@
 
 The **XPert AI Agent** is an innovative solution designed to enhance customer support efficiency by leveraging the power of Generative AI. This project addresses the common problem of customer support agents needing to access multiple systems to answer customer queries, leading to delays and increased workload. By integrating an AI-powered chat platform, XPert AI Agent streamlines information retrieval, reduces resolution times, and ultimately boosts customer satisfaction.
 
+<img width="1128" alt="image" src="https://github.com/user-attachments/assets/76d96b01-6839-496b-8505-366a67eaf62e" />
+
+
 ## Key Features
 
 -   **Natural Language Chat Interface:** Users can interact with the agent using natural language, making it easy to ask questions and get quick answers.
--   **GenAI-Powered Information Retrieval:** Employs advanced GenAI models (Gemini 2.0 Flash) to understand queries and retrieve relevant information from Google BigQuery.
+-   **GenAI-Powered Information Retrieval:** Employs advanced GenAI models (Gemini 1.5 Flash, Gemini 1.5 Pro, Gemini 2.0 Flash) to understand queries and retrieve relevant information from Google BigQuery.
 -   **SQL Query Generation:** Automatically translates natural language questions into SQL queries, executes them against BigQuery, and presents the results in an easy-to-understand format.
 -   **Integration with Google Cloud:** Hosted on Google Cloud Run for scalability and reliability.
 -   **Real-time Data Access:** Connects to Google BigQuery to provide up-to-date information on collections, corrections, disputes, claims, and shipments.
@@ -38,6 +41,12 @@ The XPert AI Agent follows this architecture:
 5.  Results are translated back into natural language responses and displayed to the user.
 
 ![System Flow](https://cdn.mathpix.com/cropped/2025_04_25_ea9b4771e273da2eb4c9g-4.jpg?height=562&width=2112&top_left_y=395&top_left_x=127)
+
+## XPert AI Agent Interface
+
+Here's a look at the XPert AI Agent interface:
+
+![XPert AI Agent Interface](https://pplx-res.cloudinary.com/image/private/user_uploads/HUGUnIYwxBvyaVt/image.jpg)
 
 ## Model Comparison
 
