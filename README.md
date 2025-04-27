@@ -7,7 +7,7 @@
 
 ## Overview
 
-The **XPert AI Agent** is an innovative solution designed to enhance customer support efficiency by leveraging the power of Generative AI. This project addresses the common problem of customer support agents needing to access multiple systems to answer customer queries, leading to delays and increased workload. By integrating an AI-powered chat platform, XPert AI Agent streamlines information retrieval, reduces resolution times, and ultimately boosts customer satisfaction.
+The **XPert AI Agent** is an innovative solution designed during the part of the Google Cloud AI bootcamp. This is to enhance customer support efficiency by leveraging the power of Generative AI. This project addresses the common problem of customer support agents needing to access multiple systems to answer customer queries, leading to delays and increased workload. By integrating an AI-powered chat platform, XPert AI Agent streamlines information retrieval, reduces resolution times, and ultimately boosts customer satisfaction.
 
 <img width="1128" alt="image" src="https://github.com/user-attachments/assets/76d96b01-6839-496b-8505-366a67eaf62e" />
 
@@ -15,7 +15,7 @@ The **XPert AI Agent** is an innovative solution designed to enhance customer su
 ## Key Features
 
 -   **Natural Language Chat Interface:** Users can interact with the agent using natural language, making it easy to ask questions and get quick answers.
--   **GenAI-Powered Information Retrieval:** Employs advanced GenAI models (Gemini 1.5 Flash, Gemini 1.5 Pro, Gemini 2.0 Flash) to understand queries and retrieve relevant information from Google BigQuery.
+-   **GenAI-Powered Information Retrieval:** Employs advanced GenAI models (Gemini 2.0 Flash) to understand queries and retrieve relevant information from Google BigQuery.
 -   **SQL Query Generation:** Automatically translates natural language questions into SQL queries, executes them against BigQuery, and presents the results in an easy-to-understand format.
 -   **Integration with Google Cloud:** Hosted on Google Cloud Run for scalability and reliability.
 -   **Real-time Data Access:** Connects to Google BigQuery to provide up-to-date information on collections, corrections, disputes, claims, and shipments.
